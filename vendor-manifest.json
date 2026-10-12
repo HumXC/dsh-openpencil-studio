@@ -1,0 +1,42 @@
+{
+  "package": "@zseven-w/dsh-openpencil",
+  "version": "0.1.0-rc.13",
+  "license": "MIT",
+  "files": [
+    {
+      "source": "@zseven-w/dsh-openpencil/src/client/editor-panel.tsx",
+      "target": "src/vendor/client/editor-panel.tsx",
+      "sha256": "3ba75d44c99fa9ffb7bb0f3b8a7749a16b28781e1334d1771f94c270a3eaa180"
+    },
+    {
+      "source": "@zseven-w/dsh-openpencil/src/client/editor-bridge.ts",
+      "target": "src/vendor/client/editor-bridge.ts",
+      "sha256": "c5feb81d6f93270127518243f0bdf22a162ce3873a30c8472ec04dc89ef9e434"
+    },
+    {
+      "source": "@zseven-w/dsh-openpencil/src/client/editor-successor.ts",
+      "target": "src/vendor/client/editor-successor.ts",
+      "sha256": "00eb2116f2c4537cdf44549b81295e2225d45005a961cf3af3105855c37aca18"
+    },
+    {
+      "source": "@zseven-w/dsh-openpencil/src/client/selection-store.ts",
+      "target": "src/vendor/client/selection-store.ts",
+      "sha256": "0961c9e0916d7ae5c748afb1d98f6e9b6296c4df4de0f812610621eef3081700"
+    },
+    {
+      "source": "@zseven-w/dsh-openpencil/src/client/selection-polling.ts",
+      "target": "src/vendor/client/selection-polling.ts",
+      "sha256": "ed4fa1d4d6742907578fc5136afc6f5e3642905c20586b490cf1e5fd36fd5cb8"
+    },
+    {
+      "source": "@zseven-w/dsh-openpencil/src/client/editor-recovery.ts",
+      "target": "src/vendor/client/editor-recovery.ts",
+      "sha256": "78d28498f3248f907632c679e2cee8bb07e025a33b76fdc7fe0cf7496bb41d3f"
+    },
+    {
+      "source": "@zseven-w/dsh-openpencil/src/managed-editor-daemon.ts",
+      "target": "src/vendor/server/managed-editor-daemon.ts",
+      "sha256": "bcc7bb82f400f8a261a975bcc8d3255fb15ab5566c2de185d3c49425767a83fd"
+    }
+  ]
+}
