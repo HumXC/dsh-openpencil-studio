@@ -4,7 +4,6 @@ export default defineConfig({
   outDir: "lib", clean: false, platform: "node", target: "es2022",
   format: "cjs", dts: false, sourcemap: false,
   deps: {
-    alwaysBundle: [/^dsh-openpencil-workspace(?:[/]|$)/],
     neverBundle: [/^react(?:[/]|$)/, /^react-dom(?:[/]|$)/, /^@deepseek-ai[/]/],
   },
   checks: { legacyCjs: false },

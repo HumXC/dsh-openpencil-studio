@@ -12,9 +12,9 @@
 - [vendor-official.mjs](scripts/vendor-official.mjs) 与 [editor-patches.mjs](scripts/editor-patches.mjs) 可在源码仓库中复现这些副本和必要修改。Studio 不复制原生编辑器应用；运行时二进制和 Wasm/Web 资源来自固定版本的官方依赖。
 - [native.ts](src/native.ts) 转发经过核实的原生节点、页面、组件、资源和查询工具。原生文件打开/保存、任意文件路径、进程操作、高层生成控制器等不直接暴露。工具参数删除上游描述、示例和文件字段，使用中立说明。
 - [creation.ts](src/creation.ts) 使用独立 QuickJS 捕获 I/K，原生运行时分配真实 ID，再通过版本 CAS 保留明确创作的字段。这一步是必要的：上游即使 postProcess:false，也可能改写文字颜色和高度；仅改工具描述不能保证中立。
-- 编辑器顶栏、文件卡片、文件打开、侧栏导航和会话管理继续使用 dsh-openpencil-workspace 的 Workspace 与 v1 桥，不再造一套工作台。
+- Studio 自身包含会话工作台、顶部 OpenPencil 页签、聊天文件导航、可选 Better Sidebar 适配和文件打开授权。相关客户端代码位于 [workbench](src/workbench)，请求校验位于 [transport.ts](src/transport.ts)，文件打开入口位于 [file-open.ts](src/file-open.ts)。
 
-工作区包新增 contracts 与 client-runtime 代码导出、文件授权传递 sessionId，以及中立的缺失宿主提示和相应测试。client-runtime 提供未包装的客户端代码，由 Studio 打包；不需要独立注册工作区客户端模块。已有官方补丁脚本及用户修改保留原样。
+工作台与原生编辑器、最近文件列表、选区引用共用 Studio 内部接口。切换会话或返回 Chat 时保留同一个编辑器 iframe；切换文件与关闭画布仍遵守保存状态和未保存修改保护。文件打开使用 /_dsh/openpencil-studio/open，与模型工具共用 Studio 的会话和路径授权，不依赖独立工作区插件或官方发行包补丁。
 
 ## 工具流程
 
@@ -92,9 +92,7 @@ session/flush 首先持久保存模型工作副本和元数据。脏画布的检
 
 ~~~sh
 pnpm install --filter dsh-openpencil-studio... --ignore-scripts
-pnpm --filter dsh-openpencil-workspace build
 pnpm --filter dsh-openpencil-studio test
-pnpm --filter dsh-openpencil-workspace test
 node packages/dsh-openpencil-studio/scripts/native-smoke.mjs
 ~~~
 
@@ -107,7 +105,7 @@ STUDIO_CHROMIUM=/path/to/chromium node packages/dsh-openpencil-studio/scripts/br
 # 完成后 POST fixture 的 /test/stop，正常释放原生进程。
 ~~~
 
-当前构建验证：Studio 与 Workspace 共 256 项顺序回归全部通过，其中包括真实原生编辑器代理、检查点失败传播、工作副本事务，以及通过实际局域网监听地址验证 HTML、JS、WASM、CanvasKit、文档读取和状态回报。跨站请求、伪造 Host、不同端口、缺失 Origin 的写请求以及会话越权仍被拒绝。两包构建通过；更新 Host 插件后需要重启 DSH，单独刷新页面不能保证加载新的 Host 代码。
+Studio 的构建与回归覆盖真实原生编辑器代理、检查点失败传播、工作副本事务、会话页签切换、文件导航、选区引用和可选侧栏接入，并通过实际局域网监听地址验证 HTML、JS、WASM、CanvasKit、文档读取和状态回报。跨站请求、伪造 Host、不同端口、缺失 Origin 的写请求以及会话越权仍被拒绝。更新 Host 插件后需要重启 DSH，单独刷新页面不能保证加载新的 Host 代码。
 
 编辑器自有顶栏保持 32px：左侧按钮收起或展开原生侧栏，文件名相对整个顶栏居中，保存与其他操作位于右侧。按钮通过同源 iframe 触发固定版本原生顶栏的 ToggleSidebar，并以原生可访问性镜像确认实际状态；未就绪、锁定或切换失败时不会假定成功。原生顶栏继续裁切。升级原生版本时需重新核对按钮命中位置 `(26,22)` 和镜像区域标识 `1000/5000`。这些控制器回归不替代真实浏览器的点击与视觉验收。
 
@@ -121,10 +119,10 @@ STUDIO_CHROMIUM=/path/to/chromium node packages/dsh-openpencil-studio/scripts/br
 dsh plugin --profile web add link:/home/HumXC/dsh-plugins/packages/dsh-openpencil-studio
 ~~~
 
-Studio 内部初始化工作区的服务器路由、顶部 OpenPencil 页面、文件打开及侧栏导航；dsh-openpencil-workspace 保留为代码依赖，不再独立启用。Studio 的 bundle 只包含 Studio。官方包同样只作为固定版本的代码和运行时依赖，不加载它的插件入口。
+Studio 独立注册文件打开路由、顶部 OpenPencil 页面和导航适配；bundle 只包含 Studio。官方包只作为固定版本的代码和原生运行时依赖，不加载它的插件入口。
 
-替换旧安装时，先备份 web profile 的配置和锁文件，再从直接依赖与启用 bundle 列表中移除官方 OpenPencil 和独立工作区条目，保留其他插件及用户覆盖配置。旧提示词、工具和参考技能仍在当前运行进程中，配置确认后需由用户重启现有 Web 并刷新页面；安装操作不自动重启服务。
+替换旧安装时，只保留 Studio 的启用入口并禁用旧官方 OpenPencil 插件。保存或保留当前画布后，由用户重启现有 Web 并刷新页面；安装和构建操作不自动重启服务。
 
 重启前保存或保留正在使用的旧官方草稿；新插件不能认领旧官方的私有活动草稿。Studio 启动时若发现工作区宿主已占用会拒绝启动。若浏览器通过非默认 origin 打开 Web，应设置 allowedOrigin 为实际页面 origin；stateDirectory 可指定独立状态目录。
 
-还可对两个包运行 pnpm pack 生成安装包；Studio 发布依赖要求配套版本的工作区代码包，不应只替换单个客户端 bundle。无需运行旧官方生成策略补丁脚本来启用 Studio。
+可对 Studio 运行 pnpm pack 生成安装包。会话工作台、文件导航和请求校验随 Studio 一起交付，不需要配套工作区代码包，也无需给官方插件发行文件施加补丁。

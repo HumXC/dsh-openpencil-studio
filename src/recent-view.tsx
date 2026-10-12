@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { EmptyViewProps } from "dsh-openpencil-workspace/contracts";
+import type { EmptyViewProps } from "./workbench/contracts.js";
 import { ROUTE } from "./contracts.js";
 interface RecentRow { path: string; displayPath?: string; lastOpenedAt: string }
 export async function recentRequest(sessionId: string, action: "list" | "remove" | "touch", path?: string, signal?: AbortSignal) {

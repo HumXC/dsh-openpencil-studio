@@ -1,4 +1,4 @@
-import type { SelectionCapture } from "dsh-openpencil-workspace/contracts";
+import type { SelectionCapture } from "./workbench/contracts.js";
 export const REFERENCE_SOURCE = "pencil-selection";
 export interface SelectionReference {
   version: 1; sourcePath: string; activePageId: string; selectedIds: string[];

@@ -898,7 +898,7 @@ export class Studio {
     if (!context)
       throw new StudioError(
         "SESSION_REQUIRED",
-        "Workspace must pass the owning session ID; install the Studio workspace integration",
+        "Opening a Studio document requires the owning session ID",
       );
     const e = await this.entry(path, context.sessionId);
     const id = randomUUID();

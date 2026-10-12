@@ -5,7 +5,7 @@ import { Studio } from "./studio.js";
 import { StudioError, errorResult, record } from "./errors.js";
 import type { RecentDocuments } from "./recent.js";
 import { proxyCanvas } from "./editor-proxy.js";
-import { requireLocalRequest, WebRequestError } from "dsh-openpencil-workspace";
+import { requireLocalRequest, WebRequestError } from "./transport.js";
 function local(studio: Studio, req: IncomingMessage) {
   try {
     requireLocalRequest(req, { allowedOrigin: studio.origin, allowReadWithoutOrigin: true });

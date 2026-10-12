@@ -6,7 +6,7 @@ import { runInNewContext } from "node:vm";
 import { Window } from "happy-dom";
 import { act } from "react";
 
-test("Studio client installs workspace without loading a standalone workspace module", async () => {
+test("Studio client owns its workbench without a separate workspace module", async () => {
   const window = new Window({ url: "http://127.0.0.1:3080" });
   const names = ["window", "document", "navigator", "HTMLElement", "ResizeObserver", "Event", "IS_REACT_ACT_ENVIRONMENT"];
   const previous = names.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
@@ -32,10 +32,11 @@ test("Studio client installs workspace without loading a standalone workspace mo
     runInNewContext(await readFile(new URL("../lib/client.js", import.meta.url), "utf8"), { window, globalThis: window, document: window.document, Event: window.Event, ResizeObserver: window.ResizeObserver, console, setTimeout, clearTimeout });
     await act(async () => window.studio.apply(ctx));
     assert.deepEqual(modules, ["dsh-openpencil-studio"]);
-    assert.ok(window.__DSH_OPENPENCIL_WORKSPACE_V1__.handler);
-    assert.ok(window.__DSH_OPENPENCIL_WORKSPACE_V1__.runtime);
+    assert.ok(window.__DSH_OPENPENCIL_STUDIO_V1__.handler);
+    assert.ok(window.__DSH_OPENPENCIL_STUDIO_V1__.runtime);
+    assert.equal(window.__DSH_OPENPENCIL_WORKSPACE_V1__, undefined);
     assert.equal(registrations.filter(entry => entry.name === "conversation.view" && entry.label === "OpenPencil").length, 1);
-    assert.equal(window.document.querySelectorAll("[data-openpencil-parking]").length, 1);
+    assert.equal(window.document.querySelectorAll("[data-openpencil-studio-parking]").length, 1);
   } finally {
     await act(async () => {
       for (const fn of cleanup.reverse()) if (typeof fn === "function") await fn();

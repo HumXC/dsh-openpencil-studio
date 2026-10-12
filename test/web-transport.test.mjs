@@ -5,7 +5,9 @@ import { once } from 'node:events';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir, networkInterfaces } from 'node:os';
 import { join } from 'node:path';
-import { requireLocalRequest, handleOpen } from 'dsh-openpencil-workspace';
+import { requireLocalRequest } from '../lib/transport.js';
+import { OPEN_ENDPOINT, handleOpen } from '../lib/file-open.js';
+import { makeAuthorizer } from '../lib/index.js';
 import { handleStudio } from '../lib/http.js';
 import { Studio } from '../lib/studio.js';
 
@@ -68,21 +70,20 @@ test('actual LAN HTTP serves grants and native canvas assets and preserves state
   if (!address) { t.skip('No LAN IPv4 interface available'); return; }
   const root = await mkdtemp(join(tmpdir(),'studio-lan-'));
   const path = join(root,'局域网页面.op');
-  const studio = new Studio(async p => p,join(root,'state'),'http://127.0.0.1:3080');
+  const ctx = {
+    sessions:{get:id => id === 'owner' ? {id} : undefined},
+    sandboxPolicy:{resolve:() => ({mode:'workspace-write',workspaceRoot:root})},
+    fs:{resolve:async p => p,processPath:p => p},
+  };
+  const studio = new Studio(makeAuthorizer(ctx),join(root,'state'),'http://127.0.0.1:3080');
   let peer;
   const server = createServer((req,res) => {
     peer = req.socket.remoteAddress;
-    if (req.url === '/workspace-open') void handleOpen(ctx,req,res);
+    if (req.url === OPEN_ENDPOINT) void handleOpen(studio,req,res);
     else void handleStudio(studio,req,res);
   });
   server.listen(0,address); await once(server,'listening');
   const origin = `http://${address}:${server.address().port}`;
-  const ctx = {
-    get:() => ({version:1,origin:studio.origin,grantForDocument:async (source,text,owner) => {assert.equal(owner.sessionId,'owner');return {sourcePath:source};}}),
-    sessions:{get:id => id === 'owner' ? {id} : undefined},
-    sandboxPolicy:{resolve:() => ({mode:'workspace-write',workspaceRoot:root})},
-    fs:{resolve:async p => p,processPath:p => p,readBytes:async p => readFile(p)},
-  };
   try {
     await studio.create(path,'owner');
     const grant = await studio.grantForDocument(path,'',{sessionId:'owner'});
@@ -108,9 +109,13 @@ test('actual LAN HTTP serves grants and native canvas assets and preserves state
     const post = value => fetch(stateUrl,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(value)});
     assert.equal((await post(state)).status,200);
     assert.equal((await (await post({...state,ownerSessionId:'other'})).json()).code,'SESSION_OWNERSHIP');
-    const workspacePost = sessionId => fetch(origin + '/workspace-open',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({path,sessionId})});
-    assert.equal((await workspacePost('owner')).status,200);
-    assert.equal((await workspacePost('missing')).status,400);
+    const filePost = sessionId => fetch(origin + OPEN_ENDPOINT,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({path,sessionId})});
+    const opened = await filePost('owner');
+    assert.equal(opened.status,200);
+    assert.equal((await opened.json()).grant.sourcePath,path);
+    const missing = await filePost('missing');
+    assert.equal(missing.status,400);
+    assert.equal((await missing.json()).code,'SESSION_NOT_FOUND');
     const foreign = await fetch(canvas,{headers:{origin:'http://evil.example'}});
     assert.equal((await foreign.json()).code,'INVALID_ORIGIN');
   } finally {

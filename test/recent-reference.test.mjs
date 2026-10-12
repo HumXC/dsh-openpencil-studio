@@ -6,8 +6,8 @@ import { join, resolve } from 'node:path';
 import { RecentDocuments } from '../lib/recent.js';
 import { createTools } from '../lib/index.js';
 import { selectionReference, serializeReference, referenceLabel } from '../lib/reference.js';
-import { Workspace } from '../../dsh-openpencil-workspace/lib/workspace.js';
-import { getBridge } from '../../dsh-openpencil-workspace/lib/contracts.js';
+import { StudioWorkbench } from '../lib/workbench/controller.js';
+import { getBridge } from '../lib/workbench/contracts.js';
 async function fixture(t) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'pencil-recent-test-')));
   assert.ok(root.startsWith(await realpath(tmpdir()) + '/pencil-recent-test-'));
@@ -73,8 +73,8 @@ test('selection reference freezes complete unsaved subtree, deduplicates childre
 });
 test('reference captures composer guard before snapshot, inserts then navigates, never submits', async () => {
   const bridge=getBridge(), old=bridge.runtime, calls=[];
-  bridge.runtime={key: grant=>grant.sourcePath,successor:()=>false,preserve:async()=>'',reference:async(value,id,span)=>calls.push(['insert',value.revision,id,span.draftRev])};
-  const workspace=new Workspace(()=>true);
+  bridge.runtime={key: grant=>grant.sourcePath,preserve:async()=>'',reference:async(value,id,span)=>calls.push(['insert',value.revision,id,span.draftRev])};
+  const workspace=new StudioWorkbench(()=>true);
   try {
     await workspace.open({sessionId:'s',grant:{sourcePath:'/workspace/中文.op'}},false);
     workspace.inputs.set('s',{captureInsertion:()=>{calls.push(['span']);return{start:0,end:0,draftRev:5};}});
@@ -104,8 +104,8 @@ test('a successful open stays successful when recent metadata cannot be written'
 });
 test('reference rejects switched files and failed insertion without navigating',async()=>{
   const bridge=getBridge(),old=bridge.runtime; let inserted=0,navigated=0;
-  bridge.runtime={key:grant=>grant.sourcePath,successor:()=>false,preserve:async()=>'',reference:async()=>{inserted++;throw new Error('draft changed');}};
-  const workspace=new Workspace(()=>true);
+  bridge.runtime={key:grant=>grant.sourcePath,preserve:async()=>'',reference:async()=>{inserted++;throw new Error('draft changed');}};
+  const workspace=new StudioWorkbench(()=>true);
   try{
     await workspace.open({sessionId:'s',grant:{sourcePath:'/workspace/中文.op'}},false);
     workspace.inputs.set('s',{captureInsertion:()=>({start:0,end:0,draftRev:3})});
@@ -120,8 +120,8 @@ test('reference rejects switched files and failed insertion without navigating',
 });
 test('only completed opens update recency and an explicit revisit updates it again', async () => {
   const bridge = getBridge(), old = bridge.runtime, opened = [];
-  bridge.runtime = { key: grant => grant.sourcePath, successor: () => false, preserve: async () => '', onOpened: async request => { opened.push(request.grant.sourcePath); } };
-  const workspace = new Workspace(() => true);
+  bridge.runtime = { key: grant => grant.sourcePath, preserve: async () => '', onOpened: async request => { opened.push(request.grant.sourcePath); } };
+  const workspace = new StudioWorkbench(() => true);
   try {
     const request = { sessionId: 's', grant: { sourcePath: '/workspace/中文.op' } };
     await workspace.open(request, false);

@@ -1,15 +1,16 @@
 import type { Context } from "@deepseek-ai/cordis";
 import { useState, useSyncExternalStore } from "react";
-import { apply as applyWorkspace } from "dsh-openpencil-workspace/client-runtime";
+import { apply as applyWorkbench } from "./workbench/client.js";
 import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
 import type {} from "@deepseek-ai/dsh-client-ui-theme/client";
 import type {} from "@deepseek-ai/dsh-client-locale/client";
 import type { ToolCallViewProps } from "@deepseek-ai/dsh-client-ui-tool/client";
 import {
   getBridge,
+  RUNTIME_EVENT,
   type Runtime,
   type EditorProps,
-} from "dsh-openpencil-workspace/contracts";
+} from "./workbench/contracts.js";
 import { ManagedOpenPencilEditor } from "./vendor/client/editor-panel.js";
 import type { PresentationGrant } from "./contracts.js";
 import { RecentDocumentsView, recentRequest, recentStyle } from "./recent-view.js";
@@ -56,7 +57,7 @@ export function StudioCard({ block, sessionId }: ToolCallViewProps) {
   const open = async () => {
     try {
       const host = getBridge().handler;
-      if (!host) throw new Error("OpenPencil workspace is not enabled");
+      if (!host) throw new Error("OpenPencil Studio workbench is not ready");
       if (
         !(await host.open(
           {
@@ -115,7 +116,7 @@ export function apply(ctx: Context) {
     throw new Error(
       "An OpenPencil editor runtime is already registered; disable the old plugin first",
     );
-  applyWorkspace(ctx);
+  applyWorkbench(ctx);
   let referenceReady = false;
   void ctx.inject(["inputTriggers"], scope => scope.effect(() => {
     const registry = scope.get("inputTriggers") as unknown as { registerSource(source: {
@@ -130,7 +131,6 @@ export function apply(ctx: Context) {
   const runtime: Runtime = {
     Editor: StudioEditor,
     EmptyView: RecentDocumentsView,
-    autoRestore: false,
     onOpened: async request => { if (request.grant.sourcePath) await recentRequest(request.sessionId, "touch", request.grant.sourcePath); },
     reference: async (capture, sessionId, span) => {
       if (!referenceReady) throw new Error("引用服务尚未就绪，请重新加载插件后重试");
@@ -151,11 +151,13 @@ export function apply(ctx: Context) {
     },
     key: editorKey,
     locale: (l) => (l === "zh" ? "zh" : "en"),
-    successor: (current, next) =>
-      editorKey(current.grant, current.sessionId) ===
-      editorKey(next.grant, next.sessionId),
-    preserve: async (_state, controller) =>
-      (await controller.captureRecovery()) ? "recovered" : "failed",
+    preserve: async (state, controller) => {
+      if (state.phase === "saving" && await controller.awaitExistingSave().catch(() => false)) return "saved";
+      if (!state.dirty) return "clean";
+      if (await controller.captureRecovery().catch(() => false)) return "recovered";
+      controller.retainServerSessionOnUnmount();
+      return "retained";
+    },
   };
   ctx.effect(() => {
     const style = document.createElement("style");
@@ -173,11 +175,14 @@ export function apply(ctx: Context) {
     }` + recentStyle;
     document.head.append(style);
     bridge.runtime = runtime;
-    window.dispatchEvent(new Event("dsh-openpencil-workspace:runtime"));
-    return () => {
+    window.dispatchEvent(new Event(RUNTIME_EVENT));
+    return async () => {
+      if (bridge.runtime === runtime) {
+        await bridge.handler?.dispose();
+        if (bridge.runtime === runtime) delete bridge.runtime;
+      }
       style.remove();
-      if (bridge.runtime === runtime) delete bridge.runtime;
-      window.dispatchEvent(new Event("dsh-openpencil-workspace:runtime"));
+      window.dispatchEvent(new Event(RUNTIME_EVENT));
     };
   });
   for (const key of [

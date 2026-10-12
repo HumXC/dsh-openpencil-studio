@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import * as entry from "../lib/index.js";
 
-test("real Cordis entry registers only Studio tools, provides the workspace host and releases ownership", async () => {
+test("real Cordis entry owns Studio tools, file navigation routes and releases ownership", async () => {
   const root = await mkdtemp(join(tmpdir(), "studio-entry-"));
   const ctx = new Context();
   const tools = new Map(),
@@ -47,9 +47,11 @@ test("real Cordis entry registers only Studio tools, provides the workspace host
     await new Promise(setImmediate);
     assert.ok(tools.size > 100);
     assert.ok([...tools.keys()].every((n) => n.startsWith("pencil_")));
-    assert.equal(ctx.get("openpencilWorkspaceHost").version, 1);
+    assert.equal(ctx.get("openpencilStudioHost").version, 1);
+    assert.equal(ctx.get("openpencilWorkspaceHost"), undefined);
     assert.equal(routes.size, 2);
-    assert.ok([...routes].some(route => route.path === "/_dsh/openpencil-workspace/open"));
+    assert.ok([...routes].some(route => route.kind === "exact" && route.path === "/_dsh/openpencil-studio/open"));
+    assert.ok([...routes].some(route => route.kind === "prefix" && route.path === "/_dsh/openpencil-studio"));
     assert.equal(sections.size, 1);
     assert.doesNotMatch([...sections][0].text(), /Header|Hero|Footer/);
     const created = await tools
@@ -64,8 +66,8 @@ test("real Cordis entry registers only Studio tools, provides the workspace host
     assert.equal(tools.size, 0);
     assert.equal(routes.size, 0);
     assert.equal(sections.size, 0);
-    assert.equal(ctx.get("openpencilWorkspaceHost"), undefined);
-    ctx.provide("openpencilWorkspaceHost", { version: 1 });
+    assert.equal(ctx.get("openpencilStudioHost"), undefined);
+    ctx.provide("openpencilStudioHost", { version: 1 });
     await assert.rejects(
       async () =>
         await ctx.plugin(entry, { stateDirectory: join(root, "conflict") }),

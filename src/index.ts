@@ -1,5 +1,5 @@
 import type { Context } from "@deepseek-ai/cordis";
-import { apply as applyWorkspace } from "dsh-openpencil-workspace";
+import { OPEN_ENDPOINT, handleOpen } from "./file-open.js";
 import type FileSystem from "@deepseek-ai/dsh-fs";
 import type SandboxPolicy from "@deepseek-ai/dsh-sandbox-policy";
 import type { SessionStore } from "@deepseek-ai/dsh-session";
@@ -345,18 +345,14 @@ export function apply(ctx: Host, config: Config = {}) {
     return { root: policy.workspaceRoot, writable: policy.mode !== "read-only" };
   }, studio.authorize);
   ctx.effect(() => {
-    if (ctx.get("openpencilWorkspaceHost"))
-      throw new StudioError(
-        "HOST_CONFLICT",
-        "Disable the previous OpenPencil plugin before enabling Studio; it remains only a code dependency.",
-      );
-    const unregisterHost = ctx.provide("openpencilWorkspaceHost", studio);
+    if (ctx.get("openpencilStudioHost"))
+      throw new StudioError("HOST_CONFLICT", "Another Studio host is already registered");
+    const unregisterHost = ctx.provide("openpencilStudioHost", studio);
     return async () => {
       unregisterHost();
       await studio.dispose();
     };
   });
-  applyWorkspace(ctx);
   ctx.on("session/flush", async (session) => {
     const result = await studio.flushOwner(session.id);
     for (const warning of result.warnings)
@@ -388,12 +384,21 @@ export function apply(ctx: Host, config: Config = {}) {
   });
   void ctx.inject(["webServer"], (w) => {
     const server = w.get("webServer") as WebServer;
-    w.effect(() =>
-      server.register({
-        kind: "prefix",
-        path: ROUTE,
-        handler: (req, res) => handleStudio(studio, req, res, recent),
-      }),
-    );
+    w.effect(() => {
+      const closeOpen = server.register({
+        kind: "exact", path: OPEN_ENDPOINT,
+        handler: (req, res) => handleOpen(studio, req, res),
+      });
+      try {
+        const closeStudio = server.register({
+          kind: "prefix", path: ROUTE,
+          handler: (req, res) => handleStudio(studio, req, res, recent),
+        });
+        return () => { closeStudio(); closeOpen(); };
+      } catch (error) {
+        closeOpen();
+        throw error;
+      }
+    });
   });
 }
