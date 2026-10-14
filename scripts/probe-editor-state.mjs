@@ -1,9 +1,73 @@
-import {chromium} from 'playwright-core';
-const browser=await chromium.launch({executablePath:process.env.STUDIO_CHROMIUM,headless:true});
-try{
-const page=await browser.newPage({viewport:{width:1280,height:1000}});await page.addInitScript(()=>{window.__studioTrace=[];addEventListener('message',e=>{try{const m=typeof e.data==='string'?JSON.parse(e.data):e.data;if(m?.type)window.__studioTrace.push(m)}catch{}})});
-if(process.env.STUDIO_EMBED)await page.route('**/launch',async route=>{const response=await route.fetch();const value=await response.json();value.iframeUrl+='?embed=vscode';await route.fulfill({response,json:value})});
-page.on('pageerror',e=>console.log('pageerror',String(e)));await page.goto(process.argv[2]);await page.getByRole('button',{name:/打开.*编辑|Open.*Edit/}).click();await page.waitForFunction(()=>document.querySelector('[data-testid="lifecycle"]')?.textContent?.startsWith('ready'));
-const frame=page.frames().find(f=>f!==page.mainFrame());const snapshot=async()=>{const count=await page.evaluate(()=>window.__studioTrace.length);await page.evaluate(()=>{const f=document.querySelector('iframe');f.contentWindow.postMessage(JSON.stringify({type:'op-bridge/snapshot',purpose:'save',requestId:'probe'}),new URL(f.src).origin)});await page.waitForFunction(count=>window.__studioTrace.slice(count).some(m=>m.type==='op-bridge/snapshot-result'),count);return page.evaluate(count=>window.__studioTrace.slice(count).find(m=>m.type==='op-bridge/snapshot-result'),count)};const initialDoc=await snapshot();console.log('initial',await(await page.request.get(process.argv[2]+'/test/state')).json());
-await page.mouse.click(540,382);await page.waitForTimeout(1000);console.log('selected',await(await page.request.get(process.argv[2]+'/test/state')).json());console.log('docEqual',initialDoc.docJson===(await snapshot()).docJson);console.log('selectionEndpoint',await frame.evaluate(async()=>await(await fetch('/api/mcp/selection')).json()));console.log('a11y',await frame.locator('#op-a11y-mirror').innerText());await page.screenshot({path:process.env.STUDIO_EMBED?'/tmp/studio-embed.png':'/tmp/studio-selection-before.png'});
-}finally{await browser.close()}
+import { chromium } from "playwright-core";
+const browser = await chromium.launch({
+    executablePath: process.env.STUDIO_CHROMIUM,
+    headless: true,
+});
+try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+    await page.addInitScript(() => {
+        window.__studioTrace = [];
+        addEventListener("message", (e) => {
+            try {
+                const m = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+                if (m?.type) window.__studioTrace.push(m);
+            } catch {}
+        });
+    });
+    if (process.env.STUDIO_EMBED)
+        await page.route("**/launch", async (route) => {
+            const response = await route.fetch();
+            const value = await response.json();
+            value.iframeUrl += "?embed=vscode";
+            await route.fulfill({ response, json: value });
+        });
+    page.on("pageerror", (e) => console.log("pageerror", String(e)));
+    await page.goto(process.argv[2]);
+    await page.getByRole("button", { name: /打开.*编辑|Open.*Edit/ }).click();
+    await page.waitForFunction(() =>
+        document.querySelector('[data-testid="lifecycle"]')?.textContent?.startsWith("ready"),
+    );
+    const frame = page.frames().find((f) => f !== page.mainFrame());
+    const snapshot = async () => {
+        const count = await page.evaluate(() => window.__studioTrace.length);
+        await page.evaluate(() => {
+            const f = document.querySelector("iframe");
+            f.contentWindow.postMessage(
+                JSON.stringify({ type: "op-bridge/snapshot", purpose: "save", requestId: "probe" }),
+                new URL(f.src).origin,
+            );
+        });
+        await page.waitForFunction(
+            (count) =>
+                window.__studioTrace
+                    .slice(count)
+                    .some((m) => m.type === "op-bridge/snapshot-result"),
+            count,
+        );
+        return page.evaluate(
+            (count) =>
+                window.__studioTrace
+                    .slice(count)
+                    .find((m) => m.type === "op-bridge/snapshot-result"),
+            count,
+        );
+    };
+    const initialDoc = await snapshot();
+    console.log("initial", await (await page.request.get(process.argv[2] + "/test/state")).json());
+    await page.mouse.click(540, 382);
+    await page.waitForTimeout(1000);
+    console.log("selected", await (await page.request.get(process.argv[2] + "/test/state")).json());
+    console.log("docEqual", initialDoc.docJson === (await snapshot()).docJson);
+    console.log(
+        "selectionEndpoint",
+        await frame.evaluate(async () => await (await fetch("/api/mcp/selection")).json()),
+    );
+    console.log("a11y", await frame.locator("#op-a11y-mirror").innerText());
+    await page.screenshot({
+        path: process.env.STUDIO_EMBED
+            ? "/tmp/studio-embed.png"
+            : "/tmp/studio-selection-before.png",
+    });
+} finally {
+    await browser.close();
+}

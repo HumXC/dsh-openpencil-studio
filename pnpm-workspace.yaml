@@ -1,0 +1,8 @@
+packages:
+    - "."
+
+# The published Conversation declarations import this package without declaring it.
+packageExtensions:
+    "@deepseek-ai/dsh-client-ui-conversation@0.2.0-rc.2":
+        dependencies:
+            "@deepseek-ai/dsh-attachment": 0.2.0-rc.2

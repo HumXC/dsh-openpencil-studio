@@ -1,0 +1,12 @@
+# Generated output and dependency metadata.
+**/node_modules/
+**/lib/
+**/dist/
+**/coverage/
+pnpm-lock.yaml
+.pnpm-store/
+.git/
+.gitnexus/
+.mnemon/
+.dsh/
+.work/

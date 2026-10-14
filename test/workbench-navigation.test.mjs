@@ -7,30 +7,102 @@ import { registerNavigation } from "../lib/workbench/navigation.js";
 import { getBridge } from "../lib/workbench/contracts.js";
 import { StudioWorkbench } from "../lib/workbench/controller.js";
 test("chat-only .op interception preserves original slot ownership and normal file options", async () => {
-  const core = new SlotCore();
-  const releaseRoot = core.register({name:"root",children:{"conversation.session":{kind:"single",scope:"session"},"conversation.view":{kind:"list",scope:"session"}}},()=>null);
-  let chatProps;
-  const Session = ({children}) => children ?? null;
-  const Chat = props => {chatProps=props;return createElement("span",null,"chat");};
-  core.register({name:"conversation.session",children:{"test.header":{kind:"single",scope:"session"}}},Session);
-  const originalInject=()=>({openFile:()=>{}});
-  let releaseChat=core.register({name:"conversation.view",id:"chat",inject:originalInject,children:{"test.chat":{kind:"single",scope:"session"}}},Chat);
-  const workbench=new StudioWorkbench(), navigations=[], normalFiles=[];
-  getBridge().runtime={key:(g,s)=>g.sourcePath+s,preserve:async()=>"clean"};
-  const originalFetch=globalThis.fetch;
-  globalThis.fetch=async()=>({ok:true,json:async()=>({grant:{sourcePath:"/project/design.op"}})});
-  const release=registerNavigation({slots:core},workbench);
-  await Promise.resolve(); await Promise.resolve();
-  const sessionEntry=core.entries("conversation.session")[0],chatEntry=core.entries("conversation.view").find(e=>e.options.id==="chat");
-  assert.equal(chatEntry.inject,originalInject); assert.equal(core.entries("conversation.view").length,1);
-  assert.equal(core.register({name:"test.chat"},()=>null) instanceof Function,true);
-  let sessionTree,chatTree;
-  await act(async()=>{sessionTree=create(createElement(sessionEntry.component,{sessionId:"s",openView:(...args)=>navigations.push(args)}));chatTree=create(createElement(chatEntry.component,{sessionId:"s",openFile:async(...args)=>normalFiles.push(args)}));});
-  await act(async()=>{await chatProps.openFile("readme.md",{line:24});});assert.deepEqual(normalFiles,[["readme.md",{line:24}]]);
-  await act(async()=>{await chatProps.openFile("/project/design.op");}); assert.equal(normalFiles.length,1);assert.deepEqual(navigations,[["openpencil-studio","/project/design.op"]]);
-  // Source plugin reload removes its children, then the new registration is decorated once.
-  releaseChat(); releaseChat=core.register({name:"conversation.view",id:"chat",children:{"test.chat":{kind:"single",scope:"session"}}},Chat);
-  await Promise.resolve();await Promise.resolve();assert.notEqual(core.entries("conversation.view")[0].component,Chat);
-  release();assert.equal(core.entries("conversation.session")[0].component,Session);assert.equal(core.entries("conversation.view")[0].component,Chat);
-  await act(async()=>{sessionTree.unmount();chatTree.unmount();});releaseChat();releaseRoot();globalThis.fetch=originalFetch;
+    const core = new SlotCore();
+    const releaseRoot = core.register(
+        {
+            name: "root",
+            children: {
+                "conversation.session": { kind: "single", scope: "session" },
+                "conversation.view": { kind: "list", scope: "session" },
+            },
+        },
+        () => null,
+    );
+    let chatProps;
+    const Session = ({ children }) => children ?? null;
+    const Chat = (props) => {
+        chatProps = props;
+        return createElement("span", null, "chat");
+    };
+    core.register(
+        {
+            name: "conversation.session",
+            children: { "test.header": { kind: "single", scope: "session" } },
+        },
+        Session,
+    );
+    const originalInject = () => ({ openFile: () => {} });
+    let releaseChat = core.register(
+        {
+            name: "conversation.view",
+            id: "chat",
+            inject: originalInject,
+            children: { "test.chat": { kind: "single", scope: "session" } },
+        },
+        Chat,
+    );
+    const workbench = new StudioWorkbench(),
+        navigations = [],
+        normalFiles = [];
+    getBridge().runtime = { key: (g, s) => g.sourcePath + s, preserve: async () => "clean" };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+        ok: true,
+        json: async () => ({ grant: { sourcePath: "/project/design.op" } }),
+    });
+    const release = registerNavigation({ slots: core }, workbench);
+    await Promise.resolve();
+    await Promise.resolve();
+    const sessionEntry = core.entries("conversation.session")[0],
+        chatEntry = core.entries("conversation.view").find((e) => e.options.id === "chat");
+    assert.equal(chatEntry.inject, originalInject);
+    assert.equal(core.entries("conversation.view").length, 1);
+    assert.equal(core.register({ name: "test.chat" }, () => null) instanceof Function, true);
+    let sessionTree, chatTree;
+    await act(async () => {
+        sessionTree = create(
+            createElement(sessionEntry.component, {
+                sessionId: "s",
+                openView: (...args) => navigations.push(args),
+            }),
+        );
+        chatTree = create(
+            createElement(chatEntry.component, {
+                sessionId: "s",
+                openFile: async (...args) => normalFiles.push(args),
+            }),
+        );
+    });
+    await act(async () => {
+        await chatProps.openFile("readme.md", { line: 24 });
+    });
+    assert.deepEqual(normalFiles, [["readme.md", { line: 24 }]]);
+    await act(async () => {
+        await chatProps.openFile("/project/design.op");
+    });
+    assert.equal(normalFiles.length, 1);
+    assert.deepEqual(navigations, [["openpencil-studio", "/project/design.op"]]);
+    // Source plugin reload removes its children, then the new registration is decorated once.
+    releaseChat();
+    releaseChat = core.register(
+        {
+            name: "conversation.view",
+            id: "chat",
+            children: { "test.chat": { kind: "single", scope: "session" } },
+        },
+        Chat,
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.notEqual(core.entries("conversation.view")[0].component, Chat);
+    release();
+    assert.equal(core.entries("conversation.session")[0].component, Session);
+    assert.equal(core.entries("conversation.view")[0].component, Chat);
+    await act(async () => {
+        sessionTree.unmount();
+        chatTree.unmount();
+    });
+    releaseChat();
+    releaseRoot();
+    globalThis.fetch = originalFetch;
 });

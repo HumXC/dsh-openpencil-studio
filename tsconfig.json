@@ -1,16 +1,12 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "lib",
-    "declaration": true,
-    "jsx": "react-jsx",
-    "exactOptionalPropertyTypes": false,
-    "types": [
-      "node"
-    ]
-  },
-  "include": [
-    "src"
-  ]
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "rootDir": "src",
+        "outDir": "lib",
+        "declaration": true,
+        "jsx": "react-jsx",
+        "exactOptionalPropertyTypes": false,
+        "types": ["node"]
+    },
+    "include": ["src"]
 }

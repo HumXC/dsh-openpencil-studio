@@ -1,3 +1,39 @@
-import {mkdtemp} from "node:fs/promises";import {tmpdir} from "node:os";import {join} from "node:path";import {Studio} from "../lib/studio.js";
-const root=await mkdtemp(join(tmpdir(),"studio-mode-"));const studio=new Studio(async p=>p,join(root,"state"),"http://127.0.0.1:3080");const path=join(root,"test.op"),owner="probe";
-try{await studio.create(path,owner);await studio.call(path,owner,"batch_design",{script:'const f=I(null,{type:"frame",name:"Small",width:320,height:80,layout:"vertical",padding:12,fill:[{type:"solid",color:"#111111"}]});I(f,{type:"rectangle",width:200,height:140});I(f,{type:"text",content:"Quiet",fontSize:19,width:280,height:32,fill:[{type:"solid",color:"#111111"}]});'});const e=await studio.entry(path,owner);for(const preserve of [true,false]){const s=await studio.snapshot(e);console.log(await (await fetch(e.daemon.baseUrl+"/api/mcp/document",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({document:JSON.parse(s.documentJson),baseVersion:s.version,preserveAuthoredGeometry:preserve})})).text());console.log(preserve,"quality",JSON.stringify((await studio.call(path,owner,"get_design_quality",{})).native));console.log(preserve,"doc",(await studio.snapshot(e)).documentJson);}}finally{await studio.dispose();}
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Studio } from "../lib/studio.js";
+const root = await mkdtemp(join(tmpdir(), "studio-mode-"));
+const studio = new Studio(async (p) => p, join(root, "state"), "http://127.0.0.1:3080");
+const path = join(root, "test.op"),
+    owner = "probe";
+try {
+    await studio.create(path, owner);
+    await studio.call(path, owner, "batch_design", {
+        script: 'const f=I(null,{type:"frame",name:"Small",width:320,height:80,layout:"vertical",padding:12,fill:[{type:"solid",color:"#111111"}]});I(f,{type:"rectangle",width:200,height:140});I(f,{type:"text",content:"Quiet",fontSize:19,width:280,height:32,fill:[{type:"solid",color:"#111111"}]});',
+    });
+    const e = await studio.entry(path, owner);
+    for (const preserve of [true, false]) {
+        const s = await studio.snapshot(e);
+        console.log(
+            await (
+                await fetch(e.daemon.baseUrl + "/api/mcp/document", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({
+                        document: JSON.parse(s.documentJson),
+                        baseVersion: s.version,
+                        preserveAuthoredGeometry: preserve,
+                    }),
+                })
+            ).text(),
+        );
+        console.log(
+            preserve,
+            "quality",
+            JSON.stringify((await studio.call(path, owner, "get_design_quality", {})).native),
+        );
+        console.log(preserve, "doc", (await studio.snapshot(e)).documentJson);
+    }
+} finally {
+    await studio.dispose();
+}

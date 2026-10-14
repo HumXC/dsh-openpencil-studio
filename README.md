@@ -88,20 +88,20 @@ session/flush 首先持久保存模型工作副本和元数据。脏画布的检
 
 ## 构建和验证
 
-在仓库根目录执行：
+在本独立仓库根目录执行，需要 Node >=24.11.0 和 pnpm 11.15.0；依赖、锁文件、TypeScript 和格式化配置均由本仓库维护：
 
 ~~~sh
-pnpm install --filter dsh-openpencil-studio... --ignore-scripts
-pnpm --filter dsh-openpencil-studio test
-node packages/dsh-openpencil-studio/scripts/native-smoke.mjs
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm test
+node scripts/native-smoke.mjs
 ~~~
 
 真实浏览器测试不下载 Chrome，需指定实际可执行的 Chromium：
 
 ~~~sh
-node packages/dsh-openpencil-studio/scripts/browser-fixture.mjs
+node scripts/browser-fixture.mjs
 # 使用 fixture 打印的独立随机端口：
-STUDIO_CHROMIUM=/path/to/chromium node packages/dsh-openpencil-studio/scripts/browser-acceptance.mjs http://127.0.0.1:PORT
+STUDIO_CHROMIUM=/path/to/chromium node scripts/browser-acceptance.mjs http://127.0.0.1:PORT
 # 完成后 POST fixture 的 /test/stop，正常释放原生进程。
 ~~~
 
@@ -116,7 +116,7 @@ Studio 的构建与回归覆盖真实原生编辑器代理、检查点失败传�
 先完成上述构建。使用本地源码包时，只安装并启用 Studio 入口：
 
 ~~~sh
-dsh plugin --profile web add link:/home/HumXC/dsh-plugins/packages/dsh-openpencil-studio
+dsh plugin --profile web add link:/home/HumXC/dsh-plugins/dsh-openpencil-studio
 ~~~
 
 Studio 独立注册文件打开路由、顶部 OpenPencil 页面和导航适配；bundle 只包含 Studio。官方包只作为固定版本的代码和原生运行时依赖，不加载它的插件入口。
