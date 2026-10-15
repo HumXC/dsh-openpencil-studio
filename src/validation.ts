@@ -5,7 +5,7 @@ import {
     semanticPages,
     type SemanticPage,
 } from "./semantics.js";
-import { assertResourceUris } from "./native.js";
+import { assertDocumentResourceUris } from "./document-images.js";
 export interface Diagnostic {
     source: "studio" | "native";
     code: string;
@@ -42,7 +42,7 @@ export function parseDocument(text: string): Record<string, unknown> {
             "INVALID_DOCUMENT",
             "Expected native document version and children or pages",
         );
-    assertResourceUris(value);
+    assertDocumentResourceUris(value);
     return value;
 }
 export function technicalDiagnostics(doc: Record<string, unknown>): Diagnostic[] {

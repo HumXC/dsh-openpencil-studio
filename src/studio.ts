@@ -23,6 +23,16 @@ import { withControlSemantics, type ControlSemantics } from "./semantics.js";
 import type { StudioSnapshot, PresentationGrant } from "./contracts.js";
 import { ROUTE } from "./contracts.js";
 import { canvasPrefix } from "./editor-proxy.js";
+import { authoredContent } from "./document-content.js";
+
+/** Only validation of an incoming precise canvas snapshot may degrade to a warning. */
+class CanvasSnapshotError extends StudioError {
+    constructor(error: StudioError) {
+        super(error.code, error.message, error.details);
+        this.cause = error;
+    }
+}
+
 export type Authorize = (
     path: string,
     sessionId: string,
@@ -30,21 +40,7 @@ export type Authorize = (
     create?: boolean,
 ) => Promise<string>;
 export const hash = (text: string) => createHash("sha256").update(text).digest("hex");
-function canonical(value: unknown): unknown {
-    if (Array.isArray(value)) return value.map(canonical);
-    if (value && typeof value === "object")
-        return Object.fromEntries(
-            Object.entries(value)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([k, v]) => [k, canonical(v)]),
-        );
-    return value;
-}
-export const documentHash = (text: string) => {
-    const document = JSON.parse(text);
-    delete document.editorMeta; // View state is persisted but does not change authored content.
-    return hash(JSON.stringify(canonical(document)));
-};
+export const documentHash = (text: string) => hash(authoredContent(text));
 export async function atomicWrite(path: string, text: string, beforeRename?: () => Promise<void>) {
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });
     const tmp = path + "." + randomUUID() + ".tmp";
@@ -1286,7 +1282,12 @@ export class Studio {
             const text =
                 documentJson ??
                 (await (await official()).read(b.daemon.baseUrl, b.daemon.token)).documentJson;
-            parseDocument(text);
+            try {
+                parseDocument(text);
+            } catch (error) {
+                if (precise && error instanceof StudioError) throw new CanvasSnapshotError(error);
+                throw error;
+            }
             const authoredHash = documentHash(text);
             const recoveryId = randomBytes(32).toString("base64url");
             const path = join(e.directory, "recovery", recoveryId + ".op");
@@ -1325,8 +1326,8 @@ export class Studio {
             try {
                 return await this.captureRecovery(e, b, documentJson);
             } catch (error) {
-                // Preserve Host durability failures even if the client reports only a
-                // generic command failure or subsequently disconnects.
+                // Preserve the exact callback failure even when the client reports only a
+                // generic command error. flushOwner distinguishes snapshot content from storage.
                 if (checkpointId && b.command?.id === checkpointId)
                     b.checkpointFailure = { commandId: checkpointId, error };
                 throw error;
@@ -1448,9 +1449,11 @@ export class Studio {
                     delete e.checkpointWarning;
                 } catch (error) {
                     const failure = callbackFailure();
+                    const contentFailure =
+                        failure?.error instanceof CanvasSnapshotError ? failure.error : undefined;
                     if (failure) {
                         delete b.checkpointFailure;
-                        throw failure.error;
+                        if (!contentFailure) throw failure.error;
                     }
                     // Browser availability must not veto the durable agent/session checkpoint.
                     // Recovery metadata and disk failures still reject: they are durability failures.
@@ -1484,8 +1487,20 @@ export class Studio {
                         }
                     }
                     const warning = {
-                        code: "EDITOR_CHECKPOINT_UNAVAILABLE",
-                        error: error instanceof Error ? error.message : String(error),
+                        code: contentFailure
+                            ? "EDITOR_CHECKPOINT_INVALID"
+                            : "EDITOR_CHECKPOINT_UNAVAILABLE",
+                        error:
+                            contentFailure?.message ??
+                            (error instanceof Error ? error.message : String(error)),
+                        ...(contentFailure
+                            ? {
+                                  diagnostic: {
+                                      ...contentFailure.details,
+                                      code: contentFailure.code,
+                                  },
+                              }
+                            : {}),
                         workingCheckpointRetained: true,
                         browserSnapshotRetained: snapshotRetained,
                         latestCanvasSnapshotCaptured: false,

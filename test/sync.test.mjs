@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Studio } from "../lib/studio.js";
@@ -112,4 +112,91 @@ test("dirty revision authorization, active lease retention, canvas save synchron
         if (timer) clearInterval(timer);
         await studio.dispose();
     }
+});
+
+// Keep native save cases in one worker so they do not add another concurrent daemon.
+test("real native compact images survive open, precise recovery, browser save and reopen", async (t) => {
+    // A valid image above the native serializer's externalization threshold.
+    const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#1264a3"/><!--' +
+        " ".repeat(4096) +
+        "--></svg>";
+    const payload = "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
+    const compact = JSON.stringify({
+        version: "0.8.5",
+        children: [
+            {
+                id: "board",
+                type: "frame",
+                name: "Original",
+                width: 128,
+                height: 128,
+                fill: [{ type: "image", url: "op-image:paint" }],
+                children: [
+                    { id: "bitmap", type: "image", src: "op-image:paint", width: 32, height: 32 },
+                ],
+            },
+        ],
+        images: { paint: payload },
+    });
+    const root = await mkdtemp(join(tmpdir(), "studio-native-images-"));
+    const path = join(root, "images.op");
+    const owner = "native-image-owner";
+    await writeFile(path, compact);
+    const studio = new Studio(async (p) => p, join(root, "state"), "http://127.0.0.1:3080");
+    t.after(() => studio.dispose());
+    assert.equal(
+        (await studio.status(path, owner)).saved,
+        true,
+        "native inline representation equals compact source",
+    );
+    const entry = studio.entries.get(path);
+    const live = JSON.parse((await studio.snapshot(entry)).documentJson);
+    assert.equal(live.children[0].fill[0].url, payload);
+    assert.equal(live.children[0].children[0].src, payload);
+
+    const grant = await studio.grantForDocument(path, "", { sessionId: owner });
+    const launch = await studio.attach(grant.editor.launchUrl.split("/").at(-2), owner);
+    studio.report(launch.sessionId, {
+        generation: 1,
+        revision: 1,
+        sequence: 1,
+        dirty: true,
+        phase: "ready",
+    });
+    const draft = JSON.parse(compact);
+    draft.children[0].name = "Canvas edited";
+    const snapshot = JSON.stringify(draft);
+    const recovery = await studio.recovery(launch.sessionId, snapshot);
+    assert.equal(recovery.precise, true);
+    assert.equal(
+        (await studio.recoveryItem(launch.sessionId, recovery.recovery.id)).docJson,
+        snapshot,
+    );
+
+    assert.equal((await studio.saveBrowser(launch.sessionId, snapshot, 1, 1)).saved, true);
+    const persisted = JSON.parse(await readFile(path, "utf8"));
+    assert.equal(persisted.children[0].fill[0].url, "op-image:paint");
+    assert.equal(persisted.children[0].children[0].src, "op-image:paint");
+    assert.equal(persisted.images.paint, payload);
+    assert.equal((await studio.status(path, owner)).saved, true);
+    const latest = JSON.parse(
+        await readFile(join(entry.directory, "recovery/latest.json"), "utf8"),
+    );
+    assert.equal(latest.retired, true, "saving equivalent content retires the recovery");
+
+    studio.report(launch.sessionId, {
+        generation: 1,
+        revision: 1,
+        sequence: 2,
+        dirty: false,
+        phase: "ready",
+    });
+    await studio.closeBrowser(launch.sessionId);
+    await studio.close(path, owner);
+    assert.equal((await studio.status(path, owner)).saved, true);
+    const reopened = JSON.parse((await studio.snapshot(studio.entries.get(path))).documentJson);
+    assert.equal(reopened.children[0].name, "Canvas edited");
+    assert.equal(reopened.children[0].fill[0].url, payload);
+    assert.equal(reopened.children[0].children[0].src, payload);
 });

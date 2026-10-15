@@ -8,9 +8,25 @@ import { act, create } from "react-test-renderer";
 
 // Load the authored sources without building or changing shared lib artifacts.
 const dataModule = (text) => "data:text/javascript;base64," + Buffer.from(text).toString("base64");
+const errorsUrl = dataModule(
+    ts.transpileModule(await readFile(new URL("../src/errors.ts", import.meta.url), "utf8"), {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+    }).outputText,
+);
+const imagesUrl = dataModule(
+    stripTypeScriptTypes(
+        (await readFile(new URL("../src/document-images.ts", import.meta.url), "utf8")).replace(
+            "./errors.js",
+            errorsUrl,
+        ),
+    ),
+);
 const contentUrl = dataModule(
     stripTypeScriptTypes(
-        await readFile(new URL("../src/document-content.ts", import.meta.url), "utf8"),
+        (await readFile(new URL("../src/document-content.ts", import.meta.url), "utf8")).replace(
+            "./document-images.js",
+            imagesUrl,
+        ),
     ),
 );
 const helperUrl = dataModule(
